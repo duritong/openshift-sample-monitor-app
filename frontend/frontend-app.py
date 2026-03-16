@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import os
+import signal
+import sys
 import time
 import json
 import logging
@@ -211,7 +213,13 @@ def web_mode():
     server.serve_forever()
 
 
+def handle_sigterm(signum, frame):
+    logger.info("Received SIGTERM, shutting down gracefully...")
+    sys.exit(0)
+
+
 if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, handle_sigterm)
     if not os.path.exists(DATA_DIR):
         try:
             os.makedirs(DATA_DIR, exist_ok=True)
