@@ -1,0 +1,94 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  labels:
+    app: frontend-app
+spec:
+  ports:
+  - port: 8080
+    name: web
+    targetPort: 8080
+  selector:
+    app: frontend-app
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: frontend
+spec:
+  to:
+    kind: Service
+    name: frontend
+  port:
+    targetPort: web
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-app
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: frontend-app
+  template:
+    metadata:
+      labels:
+        app: frontend-app
+    spec:
+      containers:
+      - name: web
+        image: registry.access.redhat.com/ubi8/python-39:latest
+        command: ["python", "/app/frontend-app.py"]
+        env:
+        - name: APP_MODE
+          value: "web"
+        - name: DATA_DIR
+          value: "/data"
+        - name: BACKEND_URL
+          value: "http://backend.sample-app.svc.cluster.local:8080"
+        ports:
+        - containerPort: 8080
+          name: web
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: script
+          mountPath: /app
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+          initialDelaySeconds: 2
+          periodSeconds: 5
+      - name: worker
+        image: registry.access.redhat.com/ubi8/python-39:latest
+        command: ["python", "/app/frontend-app.py"]
+        env:
+        - name: APP_MODE
+          value: "worker"
+        - name: DATA_DIR
+          value: "/data"
+        - name: BACKEND_URL
+          value: "http://backend.sample-app.svc.cluster.local:8080"
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: script
+          mountPath: /app
+      volumes:
+      - name: script
+        configMap:
+          name: frontend-config
+      - name: data
+        emptyDir: {}
