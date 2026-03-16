@@ -40,13 +40,15 @@ def worker_mode():
 
 def check_backend_connection():
     try:
+        start_time = time.time()
         req = urllib.request.Request(f"{BACKEND_URL}/readyz")
         with urllib.request.urlopen(req, timeout=0.5) as response:
+            latency = time.time() - start_time
             if response.getcode() == 200:
-                return True, "ok"
-            return False, f"HTTP {response.getcode()}"
+                return True, "ok", latency
+            return False, f"HTTP {response.getcode()}", latency
     except Exception as e:
-        return False, str(e)
+        return False, str(e), 0.0
 
 class AppHandler(BaseHTTPRequestHandler):
     def _send_response(self, code, content_type, body):
@@ -59,27 +61,50 @@ class AppHandler(BaseHTTPRequestHandler):
         if self.path == '/readyz':
             self._send_response(200, 'text/plain', 'ok')
         elif self.path == '/healthz':
-            connected, msg = check_backend_connection()
+            connected, msg, _ = check_backend_connection()
             if connected:
                 self._send_response(200, 'text/plain', 'ok')
             else:
                 self._send_response(500, 'text/plain', f'Backend connection failed: {msg}')
+        elif self.path == '/metrics':
+            connected, _, latency = check_backend_connection()
+            metrics = f"app_frontend_backend_connected {1 if connected else 0}\n"
+            metrics += f"app_frontend_backend_latency_seconds {latency:.4f}\n"
+            
+            quorum = 0
+            if os.path.exists(BACKEND_STATE_FILE):
+                try:
+                    mtime = os.path.getmtime(BACKEND_STATE_FILE)
+                    if (time.time() - mtime) <= 15:
+                        with open(BACKEND_STATE_FILE, "r") as f:
+                            backend_state = json.load(f)
+                        if backend_state.get("quorum", False):
+                            quorum = 1
+                except:
+                    pass
+            metrics += f"app_frontend_backend_quorum_status {quorum}\n"
+            self._send_response(200, 'text/plain', metrics)
         elif self.path == '/':
-            connected, msg = check_backend_connection()
+            connected, msg, latency = check_backend_connection()
             
             backend_state = {}
             quorum = False
             if os.path.exists(BACKEND_STATE_FILE):
                 try:
-                    with open(BACKEND_STATE_FILE, "r") as f:
-                        backend_state = json.load(f)
-                    quorum = backend_state.get("quorum", False)
+                    mtime = os.path.getmtime(BACKEND_STATE_FILE)
+                    if (time.time() - mtime) > 15:
+                        logger.warning("Backend state is stale")
+                    else:
+                        with open(BACKEND_STATE_FILE, "r") as f:
+                            backend_state = json.load(f)
+                        quorum = backend_state.get("quorum", False)
                 except Exception as e:
                     logger.error(f"Error reading backend state: {e}")
             
             response_data = {
                 "backend_connected": connected,
                 "backend_connection_msg": msg,
+                "backend_latency": latency,
                 "backend_quorum": quorum,
                 "backend_data": backend_state
             }

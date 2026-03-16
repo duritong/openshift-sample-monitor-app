@@ -6,6 +6,7 @@ namespace: sample-app
 resources:
   - base-manifests.yaml
   - networkpolicy.yaml
+  - servicemonitor.yaml
 
 configMapGenerator:
   - name: app-config

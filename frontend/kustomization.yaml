@@ -5,6 +5,7 @@ namespace: sample-app-frontend
 
 resources:
   - base-manifests.yaml
+  - servicemonitor.yaml
 
 configMapGenerator:
   - name: frontend-config

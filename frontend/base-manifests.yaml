@@ -40,10 +40,19 @@ spec:
       labels:
         app: frontend-app
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: frontend-app
+              topologyKey: "kubernetes.io/hostname"
       containers:
       - name: web
-        image: registry.access.redhat.com/ubi8/python-39:latest
-        command: ["python", "/app/frontend-app.py"]
+        image: registry.access.redhat.com/ubi9/ubi:latest
+        command: ["python3", "/app/frontend-app.py"]
         env:
         - name: APP_MODE
           value: "web"
@@ -59,6 +68,13 @@ spec:
           mountPath: /data
         - name: script
           mountPath: /app
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "32Mi"
+          limits:
+            cpu: "200m"
+            memory: "64Mi"
         livenessProbe:
           httpGet:
             path: /healthz
@@ -72,8 +88,8 @@ spec:
           initialDelaySeconds: 2
           periodSeconds: 5
       - name: worker
-        image: registry.access.redhat.com/ubi8/python-39:latest
-        command: ["python", "/app/frontend-app.py"]
+        image: registry.access.redhat.com/ubi9/ubi:latest
+        command: ["python3", "/app/frontend-app.py"]
         env:
         - name: APP_MODE
           value: "worker"
@@ -86,6 +102,13 @@ spec:
           mountPath: /data
         - name: script
           mountPath: /app
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "32Mi"
+          limits:
+            cpu: "200m"
+            memory: "64Mi"
       volumes:
       - name: script
         configMap:

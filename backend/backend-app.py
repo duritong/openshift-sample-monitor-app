@@ -45,14 +45,18 @@ def writer_mode():
         time.sleep(WRITE_INTERVAL)
 
 def check_member_health(member_target):
-    try:
-        req = urllib.request.Request(f"http://{member_target}/healthz")
-        with urllib.request.urlopen(req, timeout=1.0) as response:
-            if response.getcode() == 200:
-                return member_target, True, "ok"
-            return member_target, False, f"HTTP {response.getcode()}"
-    except Exception as e:
-        return member_target, False, str(e)
+    for attempt in range(2):
+        try:
+            req = urllib.request.Request(f"http://{member_target}/healthz")
+            with urllib.request.urlopen(req, timeout=1.0) as response:
+                if response.getcode() == 200:
+                    return member_target, True, "ok"
+                if attempt == 1:
+                    return member_target, False, f"HTTP {response.getcode()}"
+        except Exception as e:
+            if attempt == 1:
+                return member_target, False, str(e)
+        time.sleep(0.5)
 
 def quorum_mode():
     logger.info("Starting quorum mode")
@@ -106,6 +110,21 @@ class AppHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/readyz':
             self._send_response(200, 'text/plain', 'ok')
+        elif self.path == '/metrics':
+            if not os.path.exists(QUORUM_FILE):
+                self._send_response(200, 'text/plain', 'app_backend_quorum_status 0\napp_backend_healthy_members_count 0\n')
+                return
+                
+            try:
+                with open(QUORUM_FILE, "r") as f:
+                    data = json.load(f)
+                
+                quorum = 1 if data.get("quorum", False) else 0
+                healthy = data.get("healthy_members", 0)
+                metrics = f"app_backend_quorum_status {quorum}\napp_backend_healthy_members_count {healthy}\n"
+                self._send_response(200, 'text/plain', metrics)
+            except Exception as e:
+                self._send_response(500, 'text/plain', f'Error: {e}')
         elif self.path == '/healthz':
             try:
                 files = [os.path.join(DATA_DIR, f) for f in os.listdir(DATA_DIR) if f.startswith("write_") and f.endswith(".txt")]

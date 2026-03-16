@@ -56,10 +56,17 @@ spec:
       labels:
         app: backend-app
     spec:
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: "topology.kubernetes.io/zone"
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app: backend-app
       containers:
       - name: web
-        image: registry.access.redhat.com/ubi8/python-39:latest
-        command: ["python", "/app/backend-app.py"]
+        image: registry.access.redhat.com/ubi9/ubi:latest
+        command: ["python3", "/app/backend-app.py"]
         env:
         - name: APP_MODE
           value: "web"
@@ -75,11 +82,18 @@ spec:
           mountPath: /data
         - name: script
           mountPath: /app
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "32Mi"
+          limits:
+            cpu: "200m"
+            memory: "64Mi"
         livenessProbe:
           httpGet:
             path: /healthz
             port: 8080
-          initialDelaySeconds: 10
+          initialDelaySeconds: 65
           periodSeconds: 10
         readinessProbe:
           httpGet:
@@ -88,8 +102,8 @@ spec:
           initialDelaySeconds: 2
           periodSeconds: 5
       - name: writer
-        image: registry.access.redhat.com/ubi8/python-39:latest
-        command: ["python", "/app/backend-app.py"]
+        image: registry.access.redhat.com/ubi9/ubi:latest
+        command: ["python3", "/app/backend-app.py"]
         env:
         - name: APP_MODE
           value: "writer"
@@ -102,9 +116,16 @@ spec:
           mountPath: /data
         - name: script
           mountPath: /app
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "32Mi"
+          limits:
+            cpu: "200m"
+            memory: "64Mi"
       - name: quorum
-        image: registry.access.redhat.com/ubi8/python-39:latest
-        command: ["python", "/app/backend-app.py"]
+        image: registry.access.redhat.com/ubi9/ubi:latest
+        command: ["python3", "/app/backend-app.py"]
         env:
         - name: APP_MODE
           value: "quorum"
@@ -127,6 +148,13 @@ spec:
           mountPath: /data
         - name: script
           mountPath: /app
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "32Mi"
+          limits:
+            cpu: "200m"
+            memory: "64Mi"
       volumes:
       - name: script
         configMap:

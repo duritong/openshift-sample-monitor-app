@@ -49,6 +49,10 @@ echo "Testing Backend /..."
 curl -s -f http://localhost:8080/
 echo -e "\nBackend / OK"
 
+echo "Testing Backend /metrics..."
+curl -s -f http://localhost:8080/metrics
+echo -e "\nBackend /metrics OK"
+
 echo "--- Testing Frontend ---"
 echo "Testing Frontend /readyz..."
 curl -s -f http://localhost:8081/readyz
@@ -61,5 +65,9 @@ echo -e "\nFrontend /healthz OK"
 echo "Testing Frontend /..."
 curl -s -f http://localhost:8081/
 echo -e "\nFrontend / OK"
+
+echo "Testing Frontend /metrics..."
+curl -s -f http://localhost:8081/metrics
+echo -e "\nFrontend /metrics OK"
 
 echo "All tests passed successfully!"

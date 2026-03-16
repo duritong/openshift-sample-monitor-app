@@ -4,7 +4,7 @@ This is a multi-tier Python web application designed to track its availability u
 
 ## Architecture
 
-The system consists of two separate Kustomize deployments:
+The system consists of two separate Kustomize deployments, both including a `ServiceMonitor` for Prometheus integration:
 
 ### Backend (`/backend`)
 Deployed as a `StatefulSet` with 3 replicas and a 1Gi RWO PVC.
@@ -12,6 +12,7 @@ Deployed as a `StatefulSet` with 3 replicas and a 1Gi RWO PVC.
     *   `/readyz`: Returns HTTP 200 indicating the app is up.
     *   `/healthz`: Returns HTTP 200 if the secondary "writer" container has successfully written a file to the Persistent Volume in the last `2 * WRITE_INTERVAL` seconds.
     *   `/`: Returns a JSON overview indicating whether the StatefulSet has quorum.
+    *   `/metrics`: Returns Prometheus metrics for quorum status and healthy member count.
 2.  **Writer Mode (`APP_MODE=writer`)**: Periodically creates files.
     *   Writes a random string to a random file on the mounted PVC every `WRITE_INTERVAL` seconds. Keeps the last 30 files.
 3.  **Quorum Mode (`APP_MODE=quorum`)**: Monitors cluster state.
@@ -23,6 +24,7 @@ Deployed as a `Deployment` with 5 replicas and an `emptyDir` volume.
     *   `/readyz`: Returns HTTP 200 indicating the app is up.
     *   `/healthz`: Returns HTTP 200 if it can connect to the Backend's `/readyz` endpoint.
     *   `/`: Returns a JSON overview indicating the backend connection status and the quorum state fetched by the background worker.
+    *   `/metrics`: Returns Prometheus metrics tracking connection status, latency, and quorum state.
 2.  **Worker Mode (`APP_MODE=worker`)**: Background syncing.
     *   Queries the Backend's `/` endpoint every 5 seconds and dumps the resulting JSON data into the shared `emptyDir`.
 
