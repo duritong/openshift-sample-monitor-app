@@ -56,6 +56,15 @@ chmod +x test.sh
 
 This starts all five modes as background processes, binds to local ports, validates the endpoints with curl, and then cleans up.
 
+### Linting and Formatting
+
+The Python codebase adheres to `ruff` linting and formatting standards. You can check and format the code locally by running:
+
+```bash
+ruff check .
+ruff format .
+```
+
 ## License
 
 This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
