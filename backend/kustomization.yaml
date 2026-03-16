@@ -8,6 +8,7 @@ resources:
   - networkpolicy.yaml
   - servicemonitor.yaml
   - prometheusrule.yaml
+  - pdb.yaml
 
 configMapGenerator:
   - name: app-config
