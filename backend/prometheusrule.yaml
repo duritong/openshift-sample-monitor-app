@@ -1,0 +1,36 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: backend-alerts
+  labels:
+    app: backend-app
+spec:
+  groups:
+  - name: backend.rules
+    rules:
+    - alert: BackendQuorumLost
+      expr: app_backend_quorum_status == 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Backend StatefulSet has lost quorum"
+        description: "The backend application has lost quorum for more than 5 minutes. Application availability is at risk."
+
+    - alert: BackendMemberDown
+      expr: app_backend_healthy_members_count < 3
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Backend StatefulSet member down"
+        description: "One or more backend members are unhealthy. Current count is {{ $value }}. Redundancy is reduced."
+
+    - alert: BackendApplicationUnhealthyCritical
+      expr: app_backend_quorum_status == 0
+      for: 1h
+      labels:
+        severity: critical
+      annotations:
+        summary: "Backend application is critically unhealthy"
+        description: "The backend application has been without quorum for more than 1 hour. Immediate intervention is required."

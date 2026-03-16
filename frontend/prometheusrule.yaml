@@ -1,0 +1,45 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: frontend-alerts
+  labels:
+    app: frontend-app
+spec:
+  groups:
+  - name: frontend.rules
+    rules:
+    - alert: FrontendBackendDisconnected
+      expr: app_frontend_backend_connected == 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Frontend cannot connect to backend"
+        description: "The frontend application has been unable to connect to the backend for more than 5 minutes."
+
+    - alert: FrontendHighLatency
+      expr: app_frontend_backend_latency_seconds > 1.0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High latency between frontend and backend"
+        description: "Frontend is experiencing high latency ({{ $value }}s) connecting to the backend for more than 5 minutes."
+
+    - alert: FrontendReportsBackendQuorumLost
+      expr: app_frontend_backend_quorum_status == 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Frontend reports backend quorum lost"
+        description: "The frontend application reports that the backend has lost quorum for more than 5 minutes."
+
+    - alert: FrontendApplicationUnhealthyCritical
+      expr: app_frontend_backend_connected == 0 or app_frontend_backend_quorum_status == 0
+      for: 1h
+      labels:
+        severity: critical
+      annotations:
+        summary: "Frontend application is critically unhealthy"
+        description: "The frontend application has been disconnected from the backend or the backend has lacked quorum for more than 1 hour. Immediate intervention is required."
