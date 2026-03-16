@@ -35,11 +35,20 @@ spec:
         summary: "Frontend reports backend quorum lost"
         description: "The frontend application reports that the backend has lost quorum for more than 5 minutes."
 
+    - alert: FrontendK8sAPIUnreachable
+      expr: app_frontend_k8s_api_health == 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Frontend cannot connect to Kubernetes API"
+        description: "The frontend worker has been unable to verify the health of the internal Kubernetes API for more than 5 minutes."
+
     - alert: FrontendApplicationUnhealthyCritical
-      expr: app_frontend_backend_connected == 0 or app_frontend_backend_quorum_status == 0
+      expr: app_frontend_backend_connected == 0 or app_frontend_backend_quorum_status == 0 or app_frontend_k8s_api_health == 0
       for: 1h
       labels:
         severity: critical
       annotations:
         summary: "Frontend application is critically unhealthy"
-        description: "The frontend application has been disconnected from the backend or the backend has lacked quorum for more than 1 hour. Immediate intervention is required."
+        description: "The frontend application has been disconnected from the backend, backend lost quorum, or Kubernetes API is unreachable for more than 1 hour. Immediate intervention is required."

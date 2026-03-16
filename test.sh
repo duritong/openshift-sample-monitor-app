@@ -23,7 +23,7 @@ APP_MODE=web DATA_DIR="$FRONTEND_DATA_DIR" PORT=8081 BACKEND_URL="http://localho
 FRONTEND_WEB_PID=$!
 
 echo "Starting Frontend Worker app..."
-APP_MODE=worker DATA_DIR="$FRONTEND_DATA_DIR" WORKER_INTERVAL=2 BACKEND_URL="http://localhost:8080" python3 "$DIR/frontend/frontend-app.py" &
+APP_MODE=worker DATA_DIR="$FRONTEND_DATA_DIR" WORKER_INTERVAL=2 BACKEND_URL="http://localhost:8080" K8S_API_URL="http://localhost:8080/readyz" python3 "$DIR/frontend/frontend-app.py" &
 FRONTEND_WORKER_PID=$!
 
 cleanup() {

@@ -22,11 +22,12 @@ Deployed as a `StatefulSet` with 3 replicas and a 1Gi RWO PVC.
 Deployed as a `Deployment` with 5 replicas and an `emptyDir` volume.
 1.  **Web Mode (`APP_MODE=web`)**: Exposes HTTP endpoints.
     *   `/readyz`: Returns HTTP 200 indicating the app is up.
-    *   `/healthz`: Returns HTTP 200 if it can connect to the Backend's `/readyz` endpoint.
-    *   `/`: Returns a JSON overview indicating the backend connection status and the quorum state fetched by the background worker.
-    *   `/metrics`: Returns Prometheus metrics tracking connection status, latency, and quorum state.
+    *   `/healthz`: Returns HTTP 200 if it can connect to the Backend's `/readyz` endpoint and the background worker reports a healthy internal Kubernetes API.
+    *   `/`: Returns a JSON overview indicating the backend connection status, the quorum state, and the internal Kubernetes API health state fetched by the background worker.
+    *   `/metrics`: Returns Prometheus metrics tracking connection status, latency, quorum state, and K8s API health.
 2.  **Worker Mode (`APP_MODE=worker`)**: Background syncing.
     *   Queries the Backend's `/` endpoint every 5 seconds and dumps the resulting JSON data into the shared `emptyDir`.
+    *   Queries the internal Kubernetes API `/healthz` endpoint every 5 seconds to verify control plane health and logs the status.
 
 ## Deployment via Kustomize
 

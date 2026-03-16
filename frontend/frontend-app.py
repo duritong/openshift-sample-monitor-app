@@ -6,6 +6,7 @@ import logging
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import urllib.request
 from urllib.error import URLError
+import ssl
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -13,14 +14,36 @@ logger = logging.getLogger(__name__)
 MODE = os.environ.get("APP_MODE", "web")
 DATA_DIR = os.environ.get("DATA_DIR", "/data")
 BACKEND_URL = os.environ.get("BACKEND_URL", "http://backend.sample-app.svc.cluster.local:8080")
+K8S_API_URL = os.environ.get("K8S_API_URL", "https://kubernetes.default.svc/healthz")
 PORT = int(os.environ.get("PORT", "8080"))
 WORKER_INTERVAL = int(os.environ.get("WORKER_INTERVAL", "5"))
 
 BACKEND_STATE_FILE = os.path.join(DATA_DIR, "backend_state.json")
+K8S_STATE_FILE = os.path.join(DATA_DIR, "k8s_state.json")
 
 def worker_mode():
-    logger.info(f"Starting worker mode, watching {BACKEND_URL}")
+    logger.info(f"Starting worker mode, watching {BACKEND_URL} and {K8S_API_URL}")
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    
     while True:
+        try:
+            k8s_req = urllib.request.Request(K8S_API_URL)
+            with urllib.request.urlopen(k8s_req, timeout=2.0, context=ctx) as response:
+                k8s_up = (response.getcode() == 200)
+        except Exception as e:
+            logger.error(f"Error fetching k8s api state: {e}")
+            k8s_up = False
+            
+        try:
+            tmp_k8s = K8S_STATE_FILE + ".tmp"
+            with open(tmp_k8s, "w") as f:
+                json.dump({"k8s_api_health": k8s_up, "timestamp": time.time()}, f)
+            os.replace(tmp_k8s, K8S_STATE_FILE)
+        except Exception as e:
+            logger.error(f"Error saving k8s state: {e}")
+
         try:
             req = urllib.request.Request(f"{BACKEND_URL}/")
             with urllib.request.urlopen(req, timeout=2.0) as response:
@@ -62,15 +85,41 @@ class AppHandler(BaseHTTPRequestHandler):
             self._send_response(200, 'text/plain', 'ok')
         elif self.path == '/healthz':
             connected, msg, _ = check_backend_connection()
-            if connected:
+            k8s_health = False
+            if os.path.exists(K8S_STATE_FILE):
+                try:
+                    mtime = os.path.getmtime(K8S_STATE_FILE)
+                    if (time.time() - mtime) <= 15:
+                        with open(K8S_STATE_FILE, "r") as f:
+                            k8s_state = json.load(f)
+                        k8s_health = k8s_state.get("k8s_api_health", False)
+                except:
+                    pass
+
+            if connected and k8s_health:
                 self._send_response(200, 'text/plain', 'ok')
-            else:
+            elif not connected:
                 self._send_response(500, 'text/plain', f'Backend connection failed: {msg}')
+            else:
+                self._send_response(500, 'text/plain', 'K8s API health check failed')
         elif self.path == '/metrics':
             connected, _, latency = check_backend_connection()
             metrics = f"app_frontend_backend_connected {1 if connected else 0}\n"
             metrics += f"app_frontend_backend_latency_seconds {latency:.4f}\n"
             
+            k8s_health_metric = 0
+            if os.path.exists(K8S_STATE_FILE):
+                try:
+                    mtime = os.path.getmtime(K8S_STATE_FILE)
+                    if (time.time() - mtime) <= 15:
+                        with open(K8S_STATE_FILE, "r") as f:
+                            k8s_state = json.load(f)
+                        if k8s_state.get("k8s_api_health", False):
+                            k8s_health_metric = 1
+                except:
+                    pass
+            metrics += f"app_frontend_k8s_api_health {k8s_health_metric}\n"
+
             quorum = 0
             if os.path.exists(BACKEND_STATE_FILE):
                 try:
@@ -87,6 +136,19 @@ class AppHandler(BaseHTTPRequestHandler):
         elif self.path == '/':
             connected, msg, latency = check_backend_connection()
             
+            k8s_health = False
+            if os.path.exists(K8S_STATE_FILE):
+                try:
+                    mtime = os.path.getmtime(K8S_STATE_FILE)
+                    if (time.time() - mtime) > 15:
+                        logger.warning("K8s state is stale")
+                    else:
+                        with open(K8S_STATE_FILE, "r") as f:
+                            k8s_state = json.load(f)
+                        k8s_health = k8s_state.get("k8s_api_health", False)
+                except Exception as e:
+                    logger.error(f"Error reading k8s state: {e}")
+
             backend_state = {}
             quorum = False
             if os.path.exists(BACKEND_STATE_FILE):
@@ -106,10 +168,11 @@ class AppHandler(BaseHTTPRequestHandler):
                 "backend_connection_msg": msg,
                 "backend_latency": latency,
                 "backend_quorum": quorum,
+                "k8s_api_health": k8s_health,
                 "backend_data": backend_state
             }
             
-            if connected and quorum:
+            if connected and quorum and k8s_health:
                 self._send_response(200, 'application/json', json.dumps(response_data, indent=2))
             else:
                 self._send_response(500, 'application/json', json.dumps(response_data, indent=2))
