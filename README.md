@@ -33,13 +33,13 @@ Deployed as a `Deployment` with 5 replicas and an `emptyDir` volume.
 
 The applications are separated into two directories with their own Kustomize configurations. The backend includes a `NetworkPolicy` to allow traffic from the frontend namespace.
 
-### Topology Spread Constraints (Fewer than 3 AZs)
+### Pod Anti-Affinity (Fewer than 3 AZs)
 
-By default, the Backend is configured with a `topologySpreadConstraints` rule that strictly requires the pods to be scheduled in different Availability Zones (`whenUnsatisfiable: DoNotSchedule`).
+By default, the Backend is configured with a `podAntiAffinity` rule that strictly requires the pods to be scheduled in different Availability Zones (`requiredDuringSchedulingIgnoredDuringExecution`).
 
-If your cluster has fewer than 3 Availability Zones, the remaining backend pods will be stuck in a `Pending` state. You can fix this while still distributing the pods as widely as possible by adding a Kustomization patch. This patch weakens the zone constraint to a preference (`ScheduleAnyway`) and adds a new constraint to prefer (or require) spreading pods across different hosts.
+If your cluster has fewer than 3 Availability Zones, the remaining backend pods will be stuck in a `Pending` state. You can fix this while still distributing the pods as widely as possible by adding a Kustomization patch. This patch weakens the hard zone requirement to a preference (`preferredDuringSchedulingIgnoredDuringExecution`), and adds an additional preference to spread across different host nodes.
 
-Create a file named `backend/patch-topology.yaml` with the following content:
+Create a file named `backend/patch-affinity.yaml` with the following content:
 
 ```yaml
 apiVersion: apps/v1
@@ -49,26 +49,37 @@ metadata:
 spec:
   template:
     spec:
-      topologySpreadConstraints:
-      - maxSkew: 1
-        topologyKey: "topology.kubernetes.io/zone"
-        whenUnsatisfiable: ScheduleAnyway
-        labelSelector:
-          matchLabels:
-            app: backend-app
-      - maxSkew: 1
-        topologyKey: "kubernetes.io/hostname"
-        whenUnsatisfiable: ScheduleAnyway
-        labelSelector:
-          matchLabels:
-            app: backend-app
+      affinity:
+        podAntiAffinity:
+          # Remove the strict requirement
+          $patch: delete
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app: backend-app
+            topologyKey: "topology.kubernetes.io/zone"
+        podAntiAffinity:
+          # Add the weakened preference for zones and nodes
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: backend-app
+              topologyKey: "topology.kubernetes.io/zone"
+          - weight: 50
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: backend-app
+              topologyKey: "kubernetes.io/hostname"
 ```
 
 Then, include this patch in your `backend/kustomization.yaml`:
 
 ```yaml
 patches:
-  - path: patch-topology.yaml
+  - path: patch-affinity.yaml
 ```
 
 **Deploy Backend:**
