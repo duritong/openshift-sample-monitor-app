@@ -14,3 +14,5 @@ configMapGenerator:
   - name: app-config
     files:
       - backend-app.py
+    options:
+      disableNameSuffixHash: true
