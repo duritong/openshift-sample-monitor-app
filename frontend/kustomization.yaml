@@ -15,5 +15,3 @@ configMapGenerator:
       - frontend-app.py
     options:
       disableNameSuffixHash: true
-
-
